@@ -25,6 +25,7 @@
 */
 
 import Ember from 'ember';
+import Mutex from 'ember-mutex';
 import layout from '../templates/components/pdf-document';
 
 const {
@@ -71,7 +72,6 @@ let componentLoaded;
 let componentScrolled;
 let finishedLoading;
 let finishedScrolling;
-
 if (testing) {
   componentLoaded = new Promise((resolve/*, reject*/) => {
     finishedLoading = resolve;
@@ -86,7 +86,8 @@ if (testing) {
 export default Ember.Component.extend({
 
   pdfJs: Ember.inject.service('pdfjs-lib'),
-  viewerManager: Ember.inject.service('viewer-manager'),
+  viewer:null,
+  //viewerManager: Ember.inject.service('viewer-manager'),
 
   // Libs
   pdfLib: reads('pdfJs.PDFJS'),
@@ -131,17 +132,17 @@ export default Ember.Component.extend({
   * @return void
   */
   didInsertElement: function() {
-
     let [container] = this.element.getElementsByClassName('pdfViewerContainer');
     set(this, '_container', container);
 
     let linkService = new PDFLinkService();
-    set(this, 'viewerManager.linkService', linkService);
+    set(this, 'linkService', linkService);
     let viewer = new PDFViewer({
       container,
       linkService: linkService
     });
-    set(this, 'viewerManager.viewer', viewer);
+    console.error(this.element);
+    set(this, 'viewer', viewer);
     linkService.setViewer(viewer);
     let findController = new PDFFindController({
       pdfViewer: viewer
@@ -149,10 +150,10 @@ export default Ember.Component.extend({
 
     // PDFJS will send this event when the findController gets matches
     findController.onUpdateResultsCount = function(count) {
-      set(this, 'viewerManager.searchData.matchCount', count);
+    //  set(this, 'viewerManager.searchData.matchCount', count);
     }.bind(this);
 
-    set(this, 'viewerManager.findController', findController);
+    set(this, 'findController', findController);
 
     // Two way street... Need to give the find controller to the viewer directly
     // ... it's not enough to just give the find controller to the viewer
@@ -177,31 +178,21 @@ export default Ember.Component.extend({
       // depending on your viewport and layout needs.
       viewer.currentScaleValue = 'page-width';
     });
-
-    // What to do otherwise...? What if there is no `src`...
     if (get(this, 'src')) {
       this.send('load');
     }
-
-
-    // TODO: We need a way to hook into the PDFJS library to apply
-    //   the same custom treatment as is given to the jqXHR object
-    //   via `authorize`, etc... but for now, we need to set some
-    //   parameters to give to the downstream xhr caller
-    this._super(...arguments);
   },
-
   actions: {
     load () {
 
-    // Move to host app?
+    // Move to host app?let [container] = this.element.getElementsByClassName('pdfViewerContainer');
+
     // Going to need some form of security for docs that require auth
     // let token = Ember.$.cookie ? Ember.$.cookie('auth_token') : 'No Cookie!';
     // let docInitParams = {
     //     url: get(this, 'src'),
     //     httpHeaders: { "Authorization": `Basic ${token}` }
     // };
-
       let uri = get(this, 'src');
       let loadingTask = get(this, 'pdfLib').getDocument(uri);
 
@@ -224,9 +215,9 @@ export default Ember.Component.extend({
 
       loadingTask = loadingTask.then((pdfDocument) => {
         set(this, 'pdfDocument', pdfDocument);
-        let viewer = get(this, 'viewerManager.viewer');
+        let viewer = get(this, 'viewer');
         viewer.setDocument(pdfDocument);
-        let linkService = get(this, 'viewerManager.linkService');
+        let linkService = get(this, 'linkService');
         linkService.setDocument(pdfDocument);
         set(this, 'pdfTotalPages', linkService.pagesCount);
         set(this, 'pdfPage', linkService.page);
@@ -234,6 +225,6 @@ export default Ember.Component.extend({
 
       set(this, 'loadingTask', loadingTask);
       return loadingTask;
-    }
+  }
   }
 });
